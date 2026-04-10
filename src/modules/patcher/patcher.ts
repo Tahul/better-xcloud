@@ -179,7 +179,35 @@ const PATCHES = {
         }
 
         const xCloudGamepadVar = match[1];
-        const inputFeedbackManager = PatcherUtils.indexOf(codeBlock, 'this.inputFeedbackManager.onGamepadConnected(', 0, 10000);
+        const gamepadVar = codeBlock.match(/this\.gamepadTimestamps\.set\(([A-Za-z0-9_$]+)\.index/)![1];
+
+        // Local co-op: replace the gamepadMappings.find call to ensure each
+        // physical gamepad gets its own xCloud mapping with the correct GamepadIndex.
+        // We wrap the find result with a helper that creates per-gamepad mappings.
+        const findPattern = `let ${xCloudGamepadVar}=this.gamepadMappings.find`;
+        const coOpFind = `let ${xCloudGamepadVar}=function(_bxFr,_bxGp,_bxMaps){if(!window.BX_EXPOSED.localCoOpEnabled||!_bxFr)return _bxFr;if(_bxFr.GamepadIndex===_bxGp.index)return _bxFr;let _bxM=_bxMaps.find(_m=>_m.GamepadIndex===_bxGp.index);if(!_bxM){_bxM=Object.assign({},_bxFr,{GamepadIndex:_bxGp.index,Dirty:!0});_bxMaps.push(_bxM)}return _bxM}(this.gamepadMappings.find`;
+        const findEndPattern = `),${gamepadVar},this.gamepadMappings)`;
+        // Replace "let VAR=this.gamepadMappings.find(" with wrapped version
+        // and append extra args after the find's closing paren
+        codeBlock = codeBlock.replace(findPattern, coOpFind);
+        // Find the closing ) of the original find() call and add extra args
+        // The find callback is: find(e => e.something) - we need to add args after this )
+        {
+            const findStart = codeBlock.indexOf(coOpFind);
+            const findCallOpen = codeBlock.indexOf('(', findStart + coOpFind.length);
+            let depth = 1;
+            let i = findCallOpen + 1;
+            while (depth > 0 && i < codeBlock.length) {
+                if (codeBlock[i] === '(') depth++;
+                else if (codeBlock[i] === ')') depth--;
+                i++;
+            }
+            // i is right after the closing ) of find(...)
+            // Insert the extra wrapper args: ),gamepadVar,this.gamepadMappings)
+            codeBlock = codeBlock.substring(0, i) + findEndPattern + codeBlock.substring(i);
+        }
+
+        const inputFeedbackManager = PatcherUtils.indexOf(codeBlock, 'this.inputFeedbackManager.onGamepadConnected(', 0, 15000);
         const backetIndex = PatcherUtils.indexOf(codeBlock, '}', inputFeedbackManager, 100);
         if (backetIndex < 0) {
             return false;
@@ -321,8 +349,20 @@ if (window.BX_EXPOSED.stopTakRendering) {
     },
 
     supportLocalCoOp(str: string) {
-        let text = 'this.gamepadMappingsToSend=[],';
-        if (!str.includes(text)) {
+        const patterns = [
+            'this.gamepadMappingsToSend=[],',
+            'this.gamepadMappingsToSend=[]',
+        ];
+
+        let text = '';
+        for (const pattern of patterns) {
+            if (str.includes(pattern)) {
+                text = pattern;
+                break;
+            }
+        }
+
+        if (!text) {
             return false;
         }
 

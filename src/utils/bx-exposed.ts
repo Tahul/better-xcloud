@@ -234,7 +234,11 @@ export const BxExposed = {
         / /g,
     ],
 
-    toggleLocalCoOp(enable: boolean) {},
+    localCoOpEnabled: false,
+
+    toggleLocalCoOp(enable: boolean) {
+        window.BX_EXPOSED.localCoOpEnabled = enable;
+    },
 
     beforePageLoad: isFullVersion() ? (page: PatchPage) => {
         BxLogger.info('beforePageLoad', page);
