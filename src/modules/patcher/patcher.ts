@@ -186,7 +186,7 @@ const PATCHES = {
         // We wrap the find result with a helper that creates per-gamepad mappings.
         const findPattern = `let ${xCloudGamepadVar}=this.gamepadMappings.find`;
         const coOpFind = `let ${xCloudGamepadVar}=function(_bxFr,_bxGp,_bxMaps){if(!window.BX_EXPOSED.localCoOpEnabled||!_bxFr)return _bxFr;if(_bxFr.GamepadIndex===_bxGp.index)return _bxFr;let _bxM=_bxMaps.find(_m=>_m.GamepadIndex===_bxGp.index);if(!_bxM){_bxM=Object.assign({},_bxFr,{GamepadIndex:_bxGp.index,Dirty:!0});_bxMaps.push(_bxM)}return _bxM}(this.gamepadMappings.find`;
-        const findEndPattern = `),${gamepadVar},this.gamepadMappings)`;
+        const findEndPattern = `,${gamepadVar},this.gamepadMappings)`;
         // Replace "let VAR=this.gamepadMappings.find(" with wrapped version
         // and append extra args after the find's closing paren
         codeBlock = codeBlock.replace(findPattern, coOpFind);
